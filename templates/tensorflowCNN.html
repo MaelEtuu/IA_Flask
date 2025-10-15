@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block head %}
+<link href="/static/tensorflowCNN.css" rel="stylesheet"/>
+{% endblock %}
+
+{% block content %}
+<h1>Classifieur CNN sur CIFAR-100</h1>
+
+<form id="trainForm">
+  <label>Batch size :</label>
+  <input type="number" name="batch_size" value="50"><br><br>
+
+  <label>Époques :</label>
+  <input type="number" name="epochs" value="5"><br><br>
+
+  <label>Taux d’apprentissage :</label>
+  <input type="text" name="learning_rate" value="0.001"><br><br>
+
+  <label>Optimiseur :</label>
+  <select name="optimizer">
+    <option value="adam" selected>Adam</option>
+    <option value="sgd">SGD</option>
+    <option value="rmsprop">RMSprop</option>
+  </select><br><br>
+
+  <button type="submit">Entraîner le modèle</button>
+</form>
+
+<hr>
+
+<h2>Résultats</h2>
+<p><b>Loss :</b> <span id="loss"></span></p>
+<p><b>Accuracy :</b> <span id="accuracy"></span></p>
+<img id="plot" style="max-width:500px; display:none;"/>
+
+<script>
+document.getElementById("trainForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const params = {};
+    formData.forEach((value, key) => { params[key] = value });
+
+    fetch("/train_cnn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById("loss").innerText = data.test_loss.toFixed(4);
+        document.getElementById("accuracy").innerText = (data.test_accuracy * 100).toFixed(2) + "%";
+        document.getElementById("plot").src = "data:image/png;base64," + data.plot;
+        document.getElementById("plot").style.display = "block";
+    })
+    .catch(err => alert("Erreur : " + err));
+});
+</script>
+
+{% endblock %}

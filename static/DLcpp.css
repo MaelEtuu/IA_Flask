@@ -1,0 +1,103 @@
+.download-container {
+    max-width: 900px;
+    margin: 50px auto;
+    padding: 30px;
+    background: #1e1e2f;
+    border-radius: 15px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.3);
+    color: #f0f0f0;
+    font-family: 'Inter', sans-serif;
+}
+
+h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 10px;
+    color: #61dafb;
+}
+
+.subtitle {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 40px;
+}
+
+.guide {
+    background: #2b2b3f;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 40px;
+}
+
+.guide h2 {
+    color: #ffd166;
+    margin-bottom: 20px;
+}
+
+.guide ol {
+    padding-left: 25px;
+}
+
+.guide li {
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.guide code {
+    background: #333;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-family: monospace;
+}
+
+.downloads {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+}
+
+.os-card {
+    background: #2a2a3d;
+    border-radius: 15px;
+    padding: 25px;
+    width: 250px;
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.os-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0 15px rgba(97,218,251,0.3);
+}
+
+.os-card img {
+    width: 60px;
+    margin-bottom: 15px;
+}
+
+.os-card h3 {
+    color: #61dafb;
+    margin-bottom: 10px;
+}
+
+.os-card p {
+    color: #ccc;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+}
+
+.btn {
+    display: inline-block;
+    background: #61dafb;
+    color: #111;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+
+.btn:hover {
+    background: #4fc3e8;
+}

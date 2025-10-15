@@ -1,0 +1,10 @@
+# TensorFlow models
+models/
+
+# Build / archives
+*.zip
+*.tar.gz
+
+# Checkpoints
+*.ckpt
+checkpoint

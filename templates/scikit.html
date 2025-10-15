@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block head %}
+
+<link href="/static/scikit.css" rel="stylesheet" />
+
+{% endblock %}
+{% block content %}
+<head>
+    <title>Scikit</title>
+</head>
+    <h1>Scikit - Random Forest Trainer</h1>
+
+    <form id="trainForm">
+        <label for="dataset">Choisir le dataset:</label>
+        <select id="dataset" name="dataset">
+            <option value="digits">Digits</option>
+            <option value="iris">Iris</option>
+            <option value="diabetes">Diabetes</option>
+        </select><br><br>
+
+        <!-- Slider test_size -->
+        <label for="test_size">Test size (<span id="testSizeValue">0.2</span>):</label>
+        <input type="range" id="test_size" name="test_size" min="0.1" max="0.5" step="0.05" value="0.2">
+        <br><br>
+
+        <!-- Slider n_estimators -->
+        <label for="n_estimators">Nombre d'arbres (<span id="nTreesValue">10</span>):</label>
+        <input type="range" id="n_estimators" name="n_estimators" min="1" max="100" step="1" value="10">
+        <br><br>
+
+        <button type="submit" class="but">Lancer l'entraînement</button>
+    </form>
+    <h2 id="resultTitle" style="display:none;">Résultat :</h2>
+    <div id="result" style="display:none;"></div>
+    <h2 id="sensitivityTitle" style="display:none;">Étude de sensibilité :</h2>
+    <div id="sensitivityResult" style="display:none;"></div>
+    
+
+<script>
+    // Mise à jour dynamique du slider test_size
+    const testSizeSlider = document.getElementById('test_size');
+    const testSizeValue = document.getElementById('testSizeValue');
+    testSizeSlider.addEventListener('input', () => {
+        testSizeValue.textContent = testSizeSlider.value;
+    });
+
+    // Mise à jour dynamique du slider n_estimators
+    const nTreesSlider = document.getElementById('n_estimators');
+    const nTreesValue = document.getElementById('nTreesValue');
+    nTreesSlider.addEventListener('input', () => {
+        nTreesValue.textContent = nTreesSlider.value;
+    });
+
+    const form = document.getElementById('trainForm');
+form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    // Cacher les résultats et les titres avant d'envoyer la requête
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('sensitivityResult').style.display = 'none';
+    document.getElementById('resultTitle').style.display = 'none';
+    document.getElementById('sensitivityTitle').style.display = 'none';
+
+    const dataset = document.getElementById('dataset').value;
+    const test_size = document.getElementById('test_size').value;
+    const n_estimators = document.getElementById('n_estimators').value;
+
+    // Envoi des paramètres de training
+    fetch(`/train?dataset=${dataset}&test_size=${test_size}&n_estimators=${n_estimators}`)
+        .then(response => response.json())
+        .then(data => {
+            if(data.error){
+                document.getElementById('result').innerHTML = "<p style='color:red;'>"+data.error+"</p>";
+            } else {
+                let metricText = "";
+                if(dataset === "diabetes"){
+                    metricText = `<p>RMSE: ${data.mse}</p>`;
+                } else {
+                    metricText = `<p>Accuracy: ${data.accuracy}</p>`;
+                }
+
+                document.getElementById('result').innerHTML = `
+                    <p>Dataset: ${data.dataset}</p>
+                    <p>Test size: ${data.test_size}</p>
+                    <p>Nombre d'arbres: ${data.n_estimators}</p>
+                    ${metricText}
+                `;
+            }
+
+            // Afficher le titre et les résultats de "train"
+            document.getElementById('resultTitle').style.display = 'block';
+            document.getElementById('result').style.display = 'block';
+
+            // Étude de sensibilité après avoir traité le train
+            fetch(`/sensitivity?dataset=${dataset}`)
+                .then(response => response.json())
+                .then(data => {
+                    if(data.error){
+                        document.getElementById('sensitivityResult').innerHTML = "<p style='color:red;'>"+data.error+"</p>";
+                    } else {
+                        // Ajout du titre du tableau
+                        let html = `<h4>Tableau d'étude de sensibilité (${dataset})</h4>`;
+                        html += "<table><tr><th>test_size \\ n_estimators</th>";
+
+                        // Colonnes (n_estimators)
+                        const columns = Object.keys(data[Object.keys(data)[0]]);
+                        columns.forEach(col => {
+                            html += `<th>${col}</th>`;
+                        });
+                        html += "</tr>";
+
+                        // Lignes (test_size)
+                        for (let row in data) {
+                            html += `<tr><td>${row}</td>`;
+                            columns.forEach(col => {
+                                let value = data[row][col];
+                                html += `<td>${value.toFixed(4)}</td>`;
+                            });
+                            html += "</tr>";
+                        }
+
+                        html += "</table>";
+                        document.getElementById('sensitivityResult').innerHTML = html;
+
+                        // Afficher le titre et les résultats de "sensitivity"
+                        document.getElementById('sensitivityTitle').style.display = 'block';
+                        document.getElementById('sensitivityResult').style.display = 'block';
+
+                        // Mettre en évidence la case max APRÈS avoir inséré le tableau
+                        const rows = document.querySelectorAll("#sensitivityResult table tr");
+                        let maxVal = -Infinity;
+                        let maxCell = null;
+
+                        rows.forEach((row, i) => {
+                            if (i === 0) return; // skip header
+
+                            const cells = row.querySelectorAll("td");
+                            cells.forEach((cell, j) => {
+                                if (j === 0) return; // skip test_size column
+                                const val = parseFloat(cell.textContent);
+                                if (!isNaN(val) && val > maxVal) {
+                                    maxVal = val;
+                                    maxCell = cell;
+                                }
+                            });
+                        });
+
+                        if (maxCell) {
+                            maxCell.classList.add("max-cell");
+                        }
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('sensitivityResult').innerHTML = "<p style='color:red;'>Erreur serveur</p>";
+                    console.error(err);
+                });
+        })
+        .catch(err => {
+            document.getElementById('result').innerHTML = "<p style='color:red;'>Erreur serveur</p>";
+            console.error(err);
+        });
+});
+</script>
+
+{% endblock %}

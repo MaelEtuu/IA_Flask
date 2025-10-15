@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block head %}
+
+<link href="/static/influxdb.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+{% endblock %}
+{% block content %}
+    <h1>Influx</h1>
+    <div class="div_horizontal">
+        <div>
+
+            <h1>Connexion à la base : </h1>
+            <button id="btn-connect">Tester la connection à la base</button>
+            <h4 id="info-connect">
+                {% if response == true %}
+                La connexion est bonne
+                {% else %}
+                La connexion a échoué
+                {% endif %}
+            </h4>
+        </div>
+        <div>
+            <h1>Buckets : </h1>
+            
+            <button id="btn-buckets">Récupérer les buckets</button>
+            <div id="buckets_div">
+                {% for bucket in buckets %}
+                <h4>Nom : {{bucket.name}}</h4>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <h1>Prédiction par IA</h1>
+    <div class="ai-predict-container">
+        <input type="text" id="temp1" placeholder="Température 1">
+        <input type="text" id="temp2" placeholder="Température 2">
+        <button id="predict-btn">Prédire</button>
+        <span id="result_AI"></span>
+    </div>
+    <canvas id="predictionChart" width="400" height="200"></canvas>
+    <canvas id="costChart" width="400" height="200"></canvas>
+
+    <h1>Données formatées pour série temporelle</h1>
+
+    <!-- Slider pour choisir la taille de la fenêtre -->
+    <label for="windowSize">Taille de la fenêtre (X) : <span id="windowValue">3</span></label>
+    <input type="range" min="1" max="5" value="3" id="windowSize" />
+
+    <!-- Table des séries temporelles -->
+    <table border="1" cellpadding="5" cellspacing="0" id="dataTable">
+        <thead id="tableHead">
+            <tr>
+                <th>X1</th>
+                <th>X2</th>
+                <th>X3</th>
+                <th>Y</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            {% for i in range(X|length) %}
+            <tr>
+                {% for val in X[i] %}
+                <td>{{ val }}</td>
+                {% endfor %}
+                <td>{{ Y[i] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        const btn = document.getElementById('btn-connect');
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const response = await fetch("/influxdb_connect", { method: "POST", headers: { "Content-Type": "application/json" }});
+            const data = await response.json();
+            const display = document.getElementById('info-connect');
+            display.textContent = data.error ? data.error : "La connexion est bonne";
+        });
+
+        const btn_buckets = document.getElementById('btn-buckets');
+        btn_buckets.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const response = await fetch("/influxdb_get_buckets", { method: "POST", headers: { "Content-Type": "application/json" }});
+            const data = await response.json();
+            const display = document.getElementById('buckets_div');
+            display.innerHTML = "";
+            if(data.error){
+                display.textContent = data.error;
+            } else {
+                data.buckets.forEach(bucket => {
+                    const h2 = document.createElement("h4");
+                    h2.textContent = "Nom : " + bucket.name;
+                    display.appendChild(h2);
+                });
+            }
+        });
+
+        // --- AJAX ML ---
+        const predictBtn = document.getElementById("predict-btn");
+        predictBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            const t1 = parseFloat(document.getElementById("temp1").value);
+            const t2 = parseFloat(document.getElementById("temp2").value);
+
+            const resultDisplay = document.getElementById("result_AI");
+
+            if (isNaN(t1) || isNaN(t2)) {
+                resultDisplay.textContent = "⚠️ Entrez deux valeurs valides !";
+                return;
+            }
+
+            try {
+                const response = await fetch("/influxdb_ml_predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ X_new: [t1, t2, 1] }) // le biais "1"
+                });
+
+                const data = await response.json();
+
+                if (data.predict) {
+                    resultDisplay.textContent = "➡️ Prédiction : " + data.predict[0].toFixed(2);
+                } else {
+                    resultDisplay.textContent = "Erreur : " + JSON.stringify(data);
+                }
+            } catch (err) {
+                resultDisplay.textContent = "Erreur réseau : " + err.message;
+            }
+        });
+
+        // --- Slider pour mettre à jour la table ---
+        const slider = document.getElementById('windowSize');
+        const windowValue = document.getElementById('windowValue');
+        const tableHead = document.getElementById('tableHead');
+        const tableBody = document.getElementById('tableBody');
+
+        let timeoutId = null;
+
+        // Fonction pour mettre à jour le tableau
+        async function updateTable(window_size) {
+            try {
+                const response = await fetch("/influxdb_window", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ window_size })
+                });
+                const data = await response.json();
+
+                if(data.error){
+                    tableBody.innerHTML = `<tr><td colspan="${window_size+1}">${data.error}</td></tr>`;
+                    return;
+                }
+
+                // Mettre à jour l'en-tête
+                let headRow = "<tr>";
+                for(let i=1; i<=window_size; i++){
+                    headRow += `<th>X${i}</th>`;
+                }
+                headRow += "<th>Y</th></tr>";
+                tableHead.innerHTML = headRow;
+
+                // Mettre à jour le corps
+                tableBody.innerHTML = "";
+                data.X.forEach((row, idx) => {
+                    let tr = "<tr>";
+                    row.forEach(val => { tr += `<td>${val}</td>`; });
+                    tr += `<td>${data.Y[idx]}</td>`;
+                    tr += "</tr>";
+                    tableBody.innerHTML += tr;
+                });
+
+            } catch(err) {
+                tableBody.innerHTML = `<tr><td colspan="${window_size+1}">Erreur: ${err}</td></tr>`;
+            }
+        }
+
+        // Event listener avec debounce
+        slider.addEventListener('input', (e) => {
+            const window_size = parseInt(e.target.value);
+            windowValue.textContent = window_size;
+
+            if(timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => updateTable(window_size), 100);
+        });
+
+        const ctx = document.getElementById('costChart').getContext('2d');
+        const costChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [...Array({{ cost_history|length }}).keys()],
+                datasets: [{
+                    label: 'Coût',
+                    data: {{ cost_history|tojson }},
+                    borderColor: 'rgb(255,99,132)',
+                    tension: 0.1
+                }]
+            }
+        });
+
+        const ctx2 = document.getElementById('predictionChart').getContext('2d');
+        const predictionChart = new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: [...Array({{ Y|length }}).keys()],
+                datasets: [
+                    {
+                        label: 'Valeurs réelles',
+                        data: {{ Y|tojson }},
+                        borderColor: 'blue',
+                        fill: false
+                    },
+                    {
+                        label: 'Prédictions',
+                        data: {{ predictions|tojson }},
+                        borderColor: 'red',
+                        fill: false
+                    }
+                ]
+            }
+        });
+    </script>
+{% endblock %}
